@@ -1,0 +1,41 @@
+name: Recordatorio renovar sesion
+
+on:
+  schedule:
+    - cron: '0 12 1 * *'  # Dia 1 de cada mes a las 9am AR (12pm UTC)
+  workflow_dispatch:
+
+jobs:
+  recordatorio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar recordatorio por email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: info.vikenhome@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "Renovar sesion Pago Nube"
+          to: info.vikenhome@gmail.com
+          from: info.vikenhome@gmail.com
+          body: |
+            Hola Lucas,
+
+            Es el primer dia del mes — es momento de renovar la sesion de Pago Nube para que las transferencias automaticas sigan funcionando.
+
+            PASOS:
+            1. Abri PowerShell en cualquier PC
+            2. Pega esto y presiona Enter:
+
+            cd "C:\Users\Lucas\OneDrive\VIKEN HOME\Claude\Lucas\autotransferencia tiendanube"
+            .\renew-session.ps1
+
+            3. Se abre el browser, hacés login con tu Google Auth como siempre
+            4. Listo — el sistema sigue corriendo solo por otro mes
+
+            Si este mes ya lo renovaste, ignorá este mail.
+
+            ---
+            Sistema automatico VIKEN HOME
