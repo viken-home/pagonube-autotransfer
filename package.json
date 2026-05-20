@@ -1,0 +1,14 @@
+{
+  "name": "pagonube-autotransfer",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "setup": "node transfer.js --setup",
+    "transfer": "node transfer.js",
+    "debug": "node transfer.js --debug"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.44.0"
+  }
+}

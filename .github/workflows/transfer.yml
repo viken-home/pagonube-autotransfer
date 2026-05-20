@@ -1,0 +1,56 @@
+name: Pago Nube Auto-Transfer
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'      # Cada 30 min = 48/día
+    - cron: '10,40 */3 * * *'   # Extra = 16/día — Total: 64/día × 31 = 1984 min/mes
+  workflow_dispatch:
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Cache Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Instalar dependencias del sistema
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Restaurar sesión
+        run: echo "${{ secrets.TN_SESSION }}" | base64 -d > session.json
+
+      - name: Ejecutar transferencia
+        env:
+          TN_EMAIL: ${{ secrets.TN_EMAIL }}
+          TN_PASSWORD: ${{ secrets.TN_PASSWORD }}
+          MIN_AMOUNT: '0'
+        run: node transfer.js
+
+      - name: Guardar sesión actualizada
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -f session.json ] && [ -s session.json ]; then
+            gh secret set TN_SESSION --body "$(base64 -w 0 session.json)"
+          fi

@@ -1,0 +1,8 @@
+node_modules/
+.env
+session.json
+*.log
+*.png
+dom-dump.html
+page-text.txt
+frames.txt
