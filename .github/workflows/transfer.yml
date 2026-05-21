@@ -6,6 +6,9 @@ on:
     - cron: '10,40 */3 * * *'   # Extra = 16/día — Total: 64/día × 31 = 1984 min/mes
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   transfer:
     runs-on: ubuntu-latest

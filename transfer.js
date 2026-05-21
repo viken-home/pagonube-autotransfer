@@ -73,11 +73,27 @@ async function setupSession() {
 }
 
 function getPaymentsFrame(page) {
-  return page.frames().find(f => f.url().includes('services-financials')) || null;
+  return page.frames().find(f =>
+    f.url().includes('services-financials') ||
+    f.url().includes('nuvempago') ||
+    f.url().includes('pagonube')
+  ) || null;
+}
+
+async function waitForPaymentsFrame(page, timeout = 20000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const frame = getPaymentsFrame(page);
+    if (frame) return frame;
+    await page.waitForTimeout(1500);
+  }
+  const urls = page.frames().map(f => f.url()).filter(u => u && u !== 'about:blank');
+  log('Frames disponibles: ' + (urls.join(' | ') || 'ninguno'));
+  return null;
 }
 
 async function getAvailableAmount(page) {
-  const frame = getPaymentsFrame(page);
+  const frame = await waitForPaymentsFrame(page);
   if (!frame) { log('ERROR: No se encontró el iframe de Pago Nube'); return null; }
 
   const txt = await frame.evaluate(() => document.body.innerText).catch(() => '');
@@ -96,7 +112,7 @@ async function getAvailableAmount(page) {
 }
 
 async function clickTransfer(page) {
-  const frame = getPaymentsFrame(page);
+  const frame = await waitForPaymentsFrame(page);
   const ctx = frame || page;
   for (const sel of ['button:has-text("Transferir")', 'a:has-text("Transferir")', 'button:has-text("Retirar")']) {
     const btn = ctx.locator(sel).first();
@@ -110,7 +126,7 @@ async function clickTransfer(page) {
 
 async function confirmTransfer(page) {
   await page.waitForTimeout(2500);
-  const frame = getPaymentsFrame(page);
+  const frame = await waitForPaymentsFrame(page);
   const ctx = frame || page;
   for (const sel of ['button:has-text("Transferir")', 'button:has-text("Confirmar")', 'button:has-text("Aceptar")']) {
     const btn = ctx.locator(sel).first();
