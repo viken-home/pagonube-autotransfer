@@ -13,6 +13,8 @@ jobs:
   transfer:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -63,9 +65,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          echo "$(date -u '+%Y-%m-%d %H:%M UTC')" > last-run.txt
-          git add last-run.txt
-          git diff --cached --quiet || git commit -m "chore: keep-alive $(date -u '+%Y-%m-%d %H:%M')"
-          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/viken-home/pagonube-autotransfer.git HEAD:main
+          CONTENT=$(echo -n "$(date -u '+%Y-%m-%d %H:%M UTC')" | base64 -w 0)
+          SHA=$(gh api /repos/viken-home/pagonube-autotransfer/contents/last-run.txt --jq '.sha' 2>/dev/null || echo "")
+          if [ -n "$SHA" ]; then
+            gh api --method PUT /repos/viken-home/pagonube-autotransfer/contents/last-run.txt \
+              -f message="chore: keep-alive $(date -u '+%Y-%m-%d %H:%M')" \
+              -f content="$CONTENT" -f sha="$SHA"
+          else
+            gh api --method PUT /repos/viken-home/pagonube-autotransfer/contents/last-run.txt \
+              -f message="chore: keep-alive $(date -u '+%Y-%m-%d %H:%M')" \
+              -f content="$CONTENT"
+          fi
