@@ -97,17 +97,44 @@ async function getAvailableAmount(page) {
   if (!frame) { log('ERROR: No se encontró el iframe de Pago Nube'); return null; }
 
   const txt = await frame.evaluate(() => document.body.innerText).catch(() => '');
-  if (DEBUG) log('Texto iframe:\n' + txt.slice(0, 400));
+  log('Texto iframe (primeros 600 chars):\n' + txt.slice(0, 600));
 
   const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Intento 1: buscar "saldo disponible" y luego el monto en las siguientes líneas
   for (let i = 0; i < lines.length; i++) {
     if (/saldo disponible/i.test(lines[i])) {
       for (let j = i; j < Math.min(i + 6, lines.length); j++) {
-        const m = lines[j].match(/\$([\d.,]+)/);
+        const m = lines[j].match(/\$\s*([\d.,]+)/);
         if (m) return parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
       }
     }
   }
+
+  // Intento 2: buscar "disponible" genérico seguido de monto
+  for (let i = 0; i < lines.length; i++) {
+    if (/disponible/i.test(lines[i])) {
+      for (let j = i; j < Math.min(i + 6, lines.length); j++) {
+        const m = lines[j].match(/\$\s*([\d.,]+)/);
+        if (m) return parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+      }
+    }
+  }
+
+  // Intento 3: buscar "retirar" o "transferir" y el monto cercano
+  for (let i = 0; i < lines.length; i++) {
+    if (/retirar|transferir/i.test(lines[i])) {
+      for (let j = Math.max(0, i - 4); j < Math.min(i + 4, lines.length); j++) {
+        const m = lines[j].match(/\$\s*([\d.,]+)/);
+        if (m) return parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+      }
+    }
+  }
+
+  // Intento 4: cualquier monto en pesos presente en el iframe
+  const allAmounts = txt.match(/\$\s*([\d.,]+)/g);
+  log('Montos encontrados en iframe: ' + (allAmounts ? allAmounts.join(', ') : 'ninguno'));
+
   return null;
 }
 
