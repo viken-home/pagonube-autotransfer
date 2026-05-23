@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import dotenv from 'dotenv';
-import { appendFileSync, existsSync } from 'fs';
+import { appendFileSync, existsSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -18,6 +18,11 @@ const PASSWORD   = process.env.TN_PASSWORD;
 const MIN_AMOUNT = parseFloat(process.env.MIN_AMOUNT ?? '0');
 
 const PAGONUBE_URL = 'https://vikenhome3.mitiendanube.com/admin/nuvempago/';
+
+async function saveSession(context) {
+  const cookies = await context.cookies();
+  writeFileSync(SESSION, JSON.stringify({ cookies, origins: [] }));
+}
 
 function log(msg) {
   const line = `[${new Date().toLocaleString('es-AR')}] ${msg}`;
@@ -46,7 +51,7 @@ async function login(page, context) {
   await page.locator('button').filter({ hasText: /^ingresar$|^entrar$/i }).first().click();
 
   await page.waitForURL(/admin/, { timeout: 25000 });
-  await context.storageState({ path: SESSION });
+  await saveSession(context);
   log('Login exitoso ✓');
 }
 
@@ -67,7 +72,7 @@ async function setupSession() {
   console.log('Esperando que completes el login...');
   await page.waitForURL(/mitiendanube\.com\/admin/, { timeout: 120000 });
 
-  await context.storageState({ path: SESSION });
+  await saveSession(context);
   console.log('\n✓ Sesión guardada. El script automático funcionará por los próximos 30 días.\n');
   await browser.close();
 }
@@ -224,7 +229,7 @@ async function run() {
 
     if (amount <= MIN_AMOUNT) {
       log('Sin saldo para transferir.');
-      await context.storageState({ path: SESSION });
+      await saveSession(context);
       await browser.close();
       return;
     }
@@ -238,7 +243,7 @@ async function run() {
     log('Botón "Transferir" clickeado ✓');
 
     await confirmTransfer(page);
-    await context.storageState({ path: SESSION });
+    await saveSession(context);
     log(`✓ TRANSFERENCIA COMPLETADA — $${amount.toFixed(2)} enviados.`);
 
   } catch (err) {
