@@ -73,14 +73,10 @@ async function setupSession() {
 }
 
 function getPaymentsFrame(page) {
-  return page.frames().find(f =>
-    f.url().includes('services-financials') ||
-    f.url().includes('nuvempago') ||
-    f.url().includes('pagonube')
-  ) || null;
+  return page.frames().find(f => f.url().includes('services-financials')) || null;
 }
 
-async function waitForPaymentsFrame(page, timeout = 20000) {
+async function waitForPaymentsFrame(page, timeout = 25000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     const frame = getPaymentsFrame(page);
@@ -88,7 +84,7 @@ async function waitForPaymentsFrame(page, timeout = 20000) {
     await page.waitForTimeout(1500);
   }
   const urls = page.frames().map(f => f.url()).filter(u => u && u !== 'about:blank');
-  log('Frames disponibles: ' + (urls.join(' | ') || 'ninguno'));
+  log('TODOS los frames: ' + (urls.join(' | ') || 'ninguno'));
   return null;
 }
 
@@ -104,10 +100,17 @@ async function waitForFrameContent(frame, timeout = 15000) {
 
 async function getAvailableAmount(page) {
   const frame = await waitForPaymentsFrame(page);
-  if (!frame) { log('ERROR: No se encontró el iframe de Pago Nube'); return null; }
 
-  const txt = await waitForFrameContent(frame);
-  log('Texto iframe (primeros 600 chars):\n' + txt.slice(0, 600));
+  let txt;
+  if (frame) {
+    txt = await waitForFrameContent(frame);
+  } else {
+    log('iframe services-financials no encontrado — buscando saldo en página principal...');
+    await page.waitForTimeout(3000);
+    txt = await page.evaluate(() => document.body.innerText).catch(() => '');
+  }
+  if (!txt || txt.trim().length < 20) { log('ERROR: No se pudo leer contenido de Pago Nube'); return null; }
+  log('Texto contenido (primeros 600 chars):\n' + txt.slice(0, 600));
 
   const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
 
