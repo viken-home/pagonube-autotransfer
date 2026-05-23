@@ -92,11 +92,21 @@ async function waitForPaymentsFrame(page, timeout = 20000) {
   return null;
 }
 
+async function waitForFrameContent(frame, timeout = 15000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const txt = await frame.evaluate(() => document.body.innerText).catch(() => '');
+    if (txt.trim().length > 50) return txt;
+    await frame.waitForTimeout(1500);
+  }
+  return await frame.evaluate(() => document.body.innerText).catch(() => '');
+}
+
 async function getAvailableAmount(page) {
   const frame = await waitForPaymentsFrame(page);
   if (!frame) { log('ERROR: No se encontró el iframe de Pago Nube'); return null; }
 
-  const txt = await frame.evaluate(() => document.body.innerText).catch(() => '');
+  const txt = await waitForFrameContent(frame);
   log('Texto iframe (primeros 600 chars):\n' + txt.slice(0, 600));
 
   const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
