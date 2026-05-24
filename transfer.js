@@ -82,25 +82,56 @@ function getPaymentsFrame(page) {
 }
 
 async function navigateToBalance(page) {
+  // 1. Intentar con el sidebar del ADMIN PRINCIPAL (fuera del iframe)
+  for (const text of ['Resumen', 'Inicio', 'Balance', 'Billetera', 'Saldo']) {
+    const link = page.locator('a, button').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
+    if (await link.isVisible({ timeout: 1000 }).catch(() => false)) {
+      log(`Sidebar principal: navegando a "${text}"...`);
+      await link.click();
+      await page.waitForTimeout(3000);
+      return;
+    }
+  }
+
   const frame = await waitForPaymentsFrame(page);
   if (!frame) return;
 
-  // Loguear los nav items para diagnóstico
-  const navTexts = await frame.evaluate(() => {
-    const els = [...document.querySelectorAll('nav a, nav button, nav li, [role="tab"], [role="navigation"] a')];
-    return els.map(e => e.innerText?.trim()).filter(Boolean).slice(0, 20);
-  }).catch(() => []);
-  if (navTexts.length) log('Nav items detectados: ' + navTexts.join(' | '));
+  log('iframe URL: ' + frame.url());
 
-  for (const text of ['Inicio', 'Home', 'Billetera', 'Balance', 'Resumen', 'Dashboard']) {
-    const link = frame.locator('a, button, [role="tab"], li, nav *').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
-    if (await link.isVisible({ timeout: 2000 }).catch(() => false)) {
-      log(`Navegando a sección "${text}"...`);
+  // Loguear TODOS los elementos clickeables del iframe para diagnóstico
+  const clickable = await frame.evaluate(() => {
+    const els = [...document.querySelectorAll('a, button, [onclick], [class*="nav"], [class*="menu"], [class*="tab"], [class*="sidebar"], [class*="link"], [class*="item"]')];
+    return [...new Set(els.map(e => e.innerText?.trim()).filter(t => t && t.length < 40))].slice(0, 30);
+  }).catch(() => []);
+  if (clickable.length) log('Clickeables iframe: ' + clickable.join(' | '));
+
+  // 2. Intentar con cualquier elemento del iframe
+  for (const text of ['Inicio', 'Home', 'Pago Nube', 'Billetera', 'Balance', 'Resumen', 'Dashboard', 'Saldo']) {
+    const link = frame.locator('a, button, span, div, li').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
+    if (await link.isVisible({ timeout: 1000 }).catch(() => false)) {
+      log(`iframe: navegando a "${text}"...`);
       await link.click();
       await frame.waitForTimeout(3000);
       return;
     }
   }
+
+  // 3. Intentar navegar al home de la SPA via hash
+  const iframeUrl = frame.url();
+  if (iframeUrl && iframeUrl !== 'about:blank') {
+    try {
+      const homeUrl = new URL(iframeUrl);
+      homeUrl.hash = '';
+      homeUrl.pathname = homeUrl.pathname.replace(/\/(transfers|transferencias|transacciones|movimientos|history).*$/, '/');
+      if (homeUrl.href !== iframeUrl) {
+        log(`Navegando a home SPA: ${homeUrl.href}`);
+        await frame.goto(homeUrl.href, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+        await frame.waitForTimeout(3000);
+        return;
+      }
+    } catch {}
+  }
+
   log('No se encontró nav de balance — usando vista actual.');
 }
 
