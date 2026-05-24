@@ -81,6 +81,29 @@ function getPaymentsFrame(page) {
   return page.frames().find(f => f.url().includes('services-financials')) || null;
 }
 
+async function navigateToBalance(page) {
+  const frame = await waitForPaymentsFrame(page);
+  if (!frame) return;
+
+  // Loguear los nav items para diagnóstico
+  const navTexts = await frame.evaluate(() => {
+    const els = [...document.querySelectorAll('nav a, nav button, nav li, [role="tab"], [role="navigation"] a')];
+    return els.map(e => e.innerText?.trim()).filter(Boolean).slice(0, 20);
+  }).catch(() => []);
+  if (navTexts.length) log('Nav items detectados: ' + navTexts.join(' | '));
+
+  for (const text of ['Inicio', 'Home', 'Billetera', 'Balance', 'Resumen', 'Dashboard']) {
+    const link = frame.locator('a, button, [role="tab"], li, nav *').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
+    if (await link.isVisible({ timeout: 2000 }).catch(() => false)) {
+      log(`Navegando a sección "${text}"...`);
+      await link.click();
+      await frame.waitForTimeout(3000);
+      return;
+    }
+  }
+  log('No se encontró nav de balance — usando vista actual.');
+}
+
 async function waitForPaymentsFrame(page, timeout = 25000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -217,6 +240,7 @@ async function run() {
 
     if (DEBUG) await screenshot(page, 'pagonube-page');
 
+    await navigateToBalance(page);
     const amount = await getAvailableAmount(page);
 
     if (amount === null) {
