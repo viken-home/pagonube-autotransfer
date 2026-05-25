@@ -82,17 +82,6 @@ function getPaymentsFrame(page) {
 }
 
 async function navigateToBalance(page) {
-  // 1. Intentar con el sidebar del ADMIN PRINCIPAL (fuera del iframe)
-  for (const text of ['Resumen', 'Inicio', 'Balance', 'Billetera', 'Saldo']) {
-    const link = page.locator('a, button').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
-    if (await link.isVisible({ timeout: 1000 }).catch(() => false)) {
-      log(`Sidebar principal: navegando a "${text}"...`);
-      await link.click();
-      await page.waitForTimeout(3000);
-      return;
-    }
-  }
-
   const frame = await waitForPaymentsFrame(page);
   if (!frame) return;
 
