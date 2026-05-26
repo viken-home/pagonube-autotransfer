@@ -3,7 +3,7 @@ name: Pago Nube Auto-Transfer
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'   # Cada hora
+    - cron: '0,30 * * * *'   # Cada 30 min
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
