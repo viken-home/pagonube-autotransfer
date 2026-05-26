@@ -136,13 +136,15 @@ async function waitForPaymentsFrame(page, timeout = 25000) {
   return null;
 }
 
-async function waitForFrameContent(frame, timeout = 15000) {
+async function waitForFrameContent(frame, timeout = 40000) {
+  // Wait for the SPA to finish loading balance data (contains a $ amount)
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     const txt = await frame.evaluate(() => document.body.innerText).catch(() => '');
-    if (txt.trim().length > 50) return txt;
-    await frame.waitForTimeout(1500);
+    if (txt.includes('$') && txt.trim().length > 50) return txt;
+    await frame.waitForTimeout(2000);
   }
+  // Return whatever we have for logging
   return await frame.evaluate(() => document.body.innerText).catch(() => '');
 }
 
@@ -158,7 +160,7 @@ async function getAvailableAmount(page) {
     txt = await page.evaluate(() => document.body.innerText).catch(() => '');
   }
   if (!txt || txt.trim().length < 20) { log('ERROR: No se pudo leer contenido de Pago Nube'); return null; }
-  log('Texto contenido (primeros 600 chars):\n' + txt.slice(0, 600));
+  log('Texto contenido (primeros 1500 chars):\n' + txt.slice(0, 1500));
 
   const lines = txt.split('\n').map(l => l.trim()).filter(Boolean);
 
