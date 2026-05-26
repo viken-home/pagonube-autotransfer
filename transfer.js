@@ -87,34 +87,20 @@ async function navigateToBalance(page) {
 
   log('iframe URL: ' + frame.url());
 
-  // Loguear TODOS los elementos clickeables del iframe para diagnóstico
-  const clickable = await frame.evaluate(() => {
-    const els = [...document.querySelectorAll('a, button, [onclick], [class*="nav"], [class*="menu"], [class*="tab"], [class*="sidebar"], [class*="link"], [class*="item"]')];
-    return [...new Set(els.map(e => e.innerText?.trim()).filter(t => t && t.length < 40))].slice(0, 30);
-  }).catch(() => []);
-  if (clickable.length) log('Clickeables iframe: ' + clickable.join(' | '));
-
-  // 2. Intentar con cualquier elemento del iframe
+  // Use evaluate() to click directly in the browser context — avoids DOM detachment issues
+  // caused by React re-renders between Playwright's element resolution and click attempt.
   for (const text of ['Inicio', 'Home', 'Pago Nube', 'Billetera', 'Balance', 'Resumen', 'Dashboard', 'Saldo']) {
-    const link = frame.locator('a, button, span, div, li').filter({ hasText: new RegExp(`^${text}$`, 'i') }).first();
-    if (await link.isVisible({ timeout: 1000 }).catch(() => false)) {
-      log(`iframe: navegando a "${text}"...`);
-      await link.click();
-      await frame.waitForTimeout(3000);
-      return;
-    }
-  }
-
-  // 3. Intentar navegar al home de la SPA via hash
-  const iframeUrl = frame.url();
-  if (iframeUrl && iframeUrl !== 'about:blank') {
     try {
-      const homeUrl = new URL(iframeUrl);
-      homeUrl.hash = '';
-      homeUrl.pathname = homeUrl.pathname.replace(/\/(transfers|transferencias|transacciones|movimientos|history).*$/, '/');
-      if (homeUrl.href !== iframeUrl) {
-        log(`Navegando a home SPA: ${homeUrl.href}`);
-        await frame.goto(homeUrl.href, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+      const clicked = await frame.evaluate((searchText) => {
+        const re = new RegExp(`^${searchText}$`, 'i');
+        const el = [...document.querySelectorAll('a, button, span, div, li')]
+          .find(e => re.test(e.innerText?.trim()));
+        if (el) { el.click(); return true; }
+        return false;
+      }, text);
+
+      if (clicked) {
+        log(`iframe: navegando a "${text}"...`);
         await frame.waitForTimeout(3000);
         return;
       }
