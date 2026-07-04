@@ -200,20 +200,49 @@ async function clickTransfer(page) {
   return false;
 }
 
-async function confirmTransfer(page) {
-  await page.waitForTimeout(2500);
+// TiendaNube added an intermediate "¿Cuánto querés transferir?" screen (Jul/2026)
+// between the balance-page Transferir click and the final review/confirm screen.
+async function selectFullAmount(page) {
+  await page.waitForTimeout(1500);
   const frame = await waitForPaymentsFrame(page);
   const ctx = frame || page;
-  for (const sel of ['button:has-text("Transferir")', 'button:has-text("Confirmar")', 'button:has-text("Aceptar")']) {
-    const btn = ctx.locator(sel).first();
-    if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btn.click();
-      log('Confirmación final ✓');
-      await page.waitForTimeout(3000);
-      return true;
-    }
+  const checkboxLabel = ctx.locator('text=Transferir total disponible').first();
+  if (!(await checkboxLabel.isVisible({ timeout: 5000 }).catch(() => false))) {
+    return false; // this screen didn't appear — old flow, nothing to do here
   }
-  return false;
+  await checkboxLabel.click();
+  await page.waitForTimeout(500);
+  const continueBtn = ctx.locator('[data-testid="actContinue"]');
+  if (!(await continueBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+    log('ERROR: checkbox "Transferir total disponible" tildado pero no aparece "Continuar" habilitado.');
+    return false;
+  }
+  await continueBtn.click();
+  log('Monto completo seleccionado, "Continuar" clickeado ✓');
+  await page.waitForTimeout(2500);
+  return true;
+}
+
+async function confirmTransfer(page) {
+  await page.waitForTimeout(1500);
+  const frame = await waitForPaymentsFrame(page);
+  const ctx = frame || page;
+  const btn = ctx.locator('button:has-text("Transferir")').first();
+  if (!(await btn.isVisible({ timeout: 5000 }).catch(() => false))) {
+    log('ERROR: no se encontró el botón "Transferir" en la pantalla de confirmación final.');
+    return false;
+  }
+  await btn.click();
+  await page.waitForTimeout(3000);
+
+  // Verify we actually left the review screen instead of trusting a silent click
+  const text = await ctx.evaluate(() => document.body.innerText).catch(() => '');
+  if (/revis[áa] los detalles/i.test(text)) {
+    log('ERROR: sigue en la pantalla de revisión — el click en "Transferir" no confirmó la transferencia.');
+    return false;
+  }
+  log('Confirmación final ✓');
+  return true;
 }
 
 async function run() {
@@ -274,9 +303,18 @@ async function run() {
     }
     log('Botón "Transferir" clickeado ✓');
 
-    await confirmTransfer(page);
+    await selectFullAmount(page);
+    const confirmed = await confirmTransfer(page);
     await saveSession(context);
-    log(`✓ TRANSFERENCIA COMPLETADA — $${amount.toFixed(2)} enviados.`);
+
+    if (confirmed) {
+      log(`✓ TRANSFERENCIA COMPLETADA — $${amount.toFixed(2)} enviados.`);
+    } else {
+      log('✗ TRANSFERENCIA NO CONFIRMADA — revisar manualmente (posible cambio de UI en TiendaNube).');
+      await browser.close();
+      if (CI) process.exit(1);
+      return;
+    }
 
   } catch (err) {
     log(`ERROR: ${err.message}`);
